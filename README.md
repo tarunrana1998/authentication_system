@@ -2,12 +2,12 @@
 
 # 🔐 Robust Authentication & Authorization API
 
-An enterprise-grade, production-ready Authentication and Authorization RESTful API built with **Node.js**, **Express 5**, **MongoDB (Mongoose)**, **JWT (JSON Web Tokens)**, and **Bcrypt**.
+An enterprise-grade, production-ready Authentication and Authorization RESTful API built with **Node.js**, **Express 5**, **MongoDB (Mongoose)**, **JWT (Access & Refresh Tokens)**, and **Bcrypt**.
 
 [![Node.js](https://img.shields.io/badge/Node.js-v20+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Express.js](https://img.shields.io/badge/Express.js-5.x-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-[![JWT](https://img.shields.io/badge/JWT-Secure_Tokens-black?style=for-the-badge&logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
+[![JWT](https://img.shields.io/badge/JWT-Dual_Tokens-black?style=for-the-badge&logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
@@ -25,13 +25,14 @@ An enterprise-grade, production-ready Authentication and Authorization RESTful A
 
 ## 🌟 Features
 
-- 🛡️ **Stateless Authentication**: Secure JWT (JSON Web Tokens) creation and verification flow.
+- 🛡️ **Dual-Token Authentication**: Short-lived Access Tokens (15m) + Long-lived Refresh Tokens (7d).
+- 🔄 **Refresh Token Rotation**: Automatic token refresh and revocation handling.
+- 🚪 **Secure Logout**: Database token invalidation and cookie clearing.
+- 🍪 **Flexible Token Delivery**: Supports HTTP-Only Cookies, raw headers (`x-access-token`, `token`), and Authorization headers (with or without `Bearer`).
 - 🔒 **Password Security**: Strong password hashing and salting using `bcrypt` (10 salt rounds).
-- 🏗️ **Clean MVC Architecture**: Modular separation of concerns across controllers, models, routes, middlewares, and services.
-- 🚦 **Robust Error Handling**: Centralized global error handling with distinct development/production stack trace visibility and custom 404 handlers.
-- 📦 **Mongoose Schema & Validation**: Schema-level validation, regex email verification, password length checks, and automatic exclusion of sensitive fields.
-- ⚙️ **Config Management**: Centralized environment variable parsing with immutable configuration objects.
-- 🚀 **ES Modules (`import`/`export`)**: Modern, standard JavaScript syntax throughout the codebase.
+- 🏗️ **Clean MVC Architecture**: Layered separation across controllers, models, routes, middlewares, and utilities.
+- 🚦 **Robust Error Handling**: Centralized error middleware with environment-aware stack traces and 404 handlers.
+- 📦 **Mongoose Validations**: Schema-level validations and projection rules (`select: false`).
 
 ---
 
@@ -41,39 +42,37 @@ An enterprise-grade, production-ready Authentication and Authorization RESTful A
 |---|---|
 | **Runtime & Framework** | Node.js (ES Modules), Express.js (v5) |
 | **Database & ODM** | MongoDB Atlas, Mongoose (v9) |
-| **Security & Auth** | JSON Web Tokens (`jsonwebtoken`), Bcrypt (`bcrypt`) |
+| **Security & Auth** | JSON Web Tokens (`jsonwebtoken`), Bcrypt (`bcrypt`), Cookie-Parser |
 | **Utilities & Dev Tools** | Dotenv, Nodemon |
 
 ---
 
 ## 📂 Architecture & Folder Structure
 
-The project adheres to a scalable, layered MVC architecture designed for maintainability and testability:
-
 ```text
 authentication_system/
 ├── src/
-│   ├── config/              # Configuration & database connections
-│   │   ├── config.js        # Immutable environment variable loader
-│   │   └── database.js      # Resilient MongoDB Atlas connection handler
+│   ├── config/              # Centralized environment configuration & DB connection
+│   │   ├── config.js
+│   │   └── database.js
 │   ├── controllers/         # Business logic layer
-│   │   └── auth.controller.js # Register, login, and profile handlers
-│   ├── middlewares/         # Express middleware layer
-│   │   ├── auth.middleware.js # JWT Bearer verification & user injection
-│   │   └── error.middleware.js# 404 & centralized global error handling
-│   ├── models/              # Mongoose data schemas
-│   │   └── user.model.js    # User schema with validations & timestamps
+│   │   └── auth.controller.js # register, login, refreshAccessToken, logout, getProfile
+│   ├── middlewares/         # Middleware layer
+│   │   ├── auth.middleware.js # Direct token / Cookie auth verification
+│   │   └── error.middleware.js# 404 & centralized error handlers
+│   ├── models/              # Data schemas
+│   │   └── user.model.js    # User schema with refreshToken & validations
 │   ├── routes/              # Routing layer
-│   │   ├── auth.routes.js   # Auth endpoints (/register, /login, /profile)
-│   │   └── index.js         # Centralized API v1 router
-│   ├── utils/               # Shared helpers & formatters
-│   │   └── apiResponse.js   # Standardized JSON response utilities
-│   ├── app.js               # Express application initialization & middleware
-│   └── server.js            # Server entry point & DB bootstrap
-├── .env.example             # Environment variable template
-├── .gitignore               # Git exclusions
-├── index.js                 # Root delegator
-└── package.json             # Dependencies and scripts
+│   │   ├── auth.routes.js   # Auth endpoints
+│   │   └── index.js         # API v1 central router
+│   ├── utils/               # Helpers
+│   │   └── apiResponse.js   # Standardized API responses
+│   ├── app.js               # Express application setup
+│   └── server.js            # Server bootstrap
+├── .env.example
+├── .gitignore
+├── index.js
+└── package.json
 ```
 
 ---
@@ -83,8 +82,6 @@ authentication_system/
 **Base URL**: `http://localhost:3000/api/v1`
 
 ### 1. Register User
-Registers a new user, hashes password, and returns a signed JWT token.
-
 - **Method**: `POST`
 - **Endpoint**: `/auth/register`
 - **Request Body**:
@@ -95,14 +92,15 @@ Registers a new user, hashes password, and returns a signed JWT token.
     "password": "SecurePassword123"
   }
   ```
-- **Success Response (`201 Created`)**:
+- **Response (`201 Created`)**:
   ```json
   {
     "success": true,
     "statusCode": 201,
     "message": "User registered successfully",
     "data": {
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "accessToken": "eyJhbGciOi...",
+      "refreshToken": "eyJhbGciOi...",
       "user": {
         "id": "673cf2b6040b080012345678",
         "name": "Jane Doe",
@@ -116,8 +114,6 @@ Registers a new user, hashes password, and returns a signed JWT token.
 ---
 
 ### 2. Login User
-Authenticates user credentials and returns a signed JWT token.
-
 - **Method**: `POST`
 - **Endpoint**: `/auth/login`
 - **Request Body**:
@@ -127,14 +123,15 @@ Authenticates user credentials and returns a signed JWT token.
     "password": "SecurePassword123"
   }
   ```
-- **Success Response (`200 OK`)**:
+- **Response (`200 OK`)**:
   ```json
   {
     "success": true,
     "statusCode": 200,
     "message": "Login successful",
     "data": {
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "accessToken": "eyJhbGciOi...",
+      "refreshToken": "eyJhbGciOi...",
       "user": {
         "id": "673cf2b6040b080012345678",
         "name": "Jane Doe",
@@ -147,16 +144,53 @@ Authenticates user credentials and returns a signed JWT token.
 
 ---
 
-### 3. Get User Profile *(Protected)*
-Fetches the authenticated user's profile details. Requires a valid JWT token.
+### 3. Refresh Access Token
+- **Method**: `POST`
+- **Endpoint**: `/auth/refresh-token`
+- **Headers / Body / Cookie**: Send via HTTP-Only cookie `refreshToken`, request body `{ "refreshToken": "..." }`, or header `x-refresh-token`.
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 200,
+    "message": "Token refreshed successfully",
+    "data": {
+      "accessToken": "eyJhbGciOi...",
+      "refreshToken": "eyJhbGciOi..."
+    }
+  }
+  ```
 
+---
+
+### 4. Logout User
+- **Method**: `POST`
+- **Endpoint**: `/auth/logout`
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 200,
+    "message": "Logged out successfully"
+  }
+  ```
+
+---
+
+### 5. Get User Profile *(Protected)*
 - **Method**: `GET`
 - **Endpoint**: `/auth/profile`
-- **Headers**:
+- **Headers** (No `Bearer` required! Send token directly):
   ```http
-  Authorization: Bearer <YOUR_JWT_TOKEN>
+  Authorization: <YOUR_ACCESS_TOKEN>
   ```
-- **Success Response (`200 OK`)**:
+  *OR*
+  ```http
+  x-access-token: <YOUR_ACCESS_TOKEN>
+  ```
+  *OR* via HTTP-Only cookie.
+
+- **Response (`200 OK`)**:
   ```json
   {
     "success": true,
@@ -167,9 +201,7 @@ Fetches the authenticated user's profile details. Requires a valid JWT token.
         "_id": "673cf2b6040b080012345678",
         "name": "Jane Doe",
         "email": "jane@example.com",
-        "role": "user",
-        "createdAt": "2026-09-04T12:00:00.000Z",
-        "updatedAt": "2026-09-04T12:00:00.000Z"
+        "role": "user"
       }
     }
   }
@@ -179,63 +211,35 @@ Fetches the authenticated user's profile details. Requires a valid JWT token.
 
 ## ⚡ Getting Started
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
-- [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) account or local MongoDB instance
+```bash
+# Clone repository
+git clone https://github.com/tarunrana1998/authentication_system.git
+cd authentication_system
 
-### Installation
+# Install dependencies
+npm install
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/tarunrana1998/authentication_system.git
-   cd authentication_system
-   ```
+# Setup environment variables
+cp .env.example .env
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment variables**:
-   Create a `.env` file in the root directory:
-   ```bash
-   cp .env.example .env
-   ```
-   Fill in your configuration details in `.env` (see below).
-
-4. **Start the development server**:
-   ```bash
-   npm run dev
-   ```
-
-5. **Start in production mode**:
-   ```bash
-   npm start
-   ```
-
-The server will boot up on `http://localhost:3000`.
+# Run development server
+npm run dev
+```
 
 ---
 
 ## 🔐 Environment Variables
 
-| Variable | Description | Default / Example |
+| Variable | Description | Default |
 |---|---|---|
-| `PORT` | Server listening port | `3000` |
-| `NODE_ENV` | Runtime environment (`development` / `production`) | `development` |
-| `MONGO_URI` | MongoDB connection connection string | `mongodb+srv://user:pass@cluster.mongodb.net` |
-| `MONGO_DATABASE` | Target MongoDB database name | `authentication_system` |
-| `JWT_SECRET` | Secret key used to sign and verify JWTs | `your_super_secret_jwt_key` |
-| `JWT_EXPIRES_IN` | Token expiration duration | `7d` |
-
----
-
-## 🛡️ Security Best Practices Implemented
-
-- **Password Salting & Hashing**: Passwords are never stored in plain text.
-- **Selective Projection (`select: false`)**: Sensitive fields such as passwords are excluded by default from Mongoose queries.
-- **Environment Isolation**: Sensitive credentials, database URIs, and JWT keys are loaded exclusively from `.env` and kept out of version control.
-- **Clean Error Messages**: Prevents leaking internal database error messages and stack traces to clients in production mode.
+| `PORT` | Server Port | `3000` |
+| `NODE_ENV` | Environment (`development` / `production`) | `development` |
+| `MONGO_URI` | MongoDB Connection URL | — |
+| `MONGO_DATABASE` | Database Name | `authentication_system` |
+| `ACCESS_TOKEN_SECRET` | Secret key for access token | — |
+| `ACCESS_TOKEN_EXPIRES_IN` | Access token lifetime | `15m` |
+| `REFRESH_TOKEN_SECRET` | Secret key for refresh token | — |
+| `REFRESH_TOKEN_EXPIRES_IN` | Refresh token lifetime | `7d` |
 
 ---
 
@@ -243,9 +247,3 @@ The server will boot up on `http://localhost:3000`.
 
 **Tarun Rana**
 - GitHub: [@tarunrana1998](https://github.com/tarunrana1998)
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - feel free to use it for learning or commercial projects.
