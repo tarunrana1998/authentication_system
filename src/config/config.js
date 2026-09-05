@@ -7,6 +7,7 @@ const config = {
     mongoURI: process.env.MONGO_URI,
     mongoDatabase: process.env.MONGO_DATABASE,
     nodeEnv: process.env.NODE_ENV || "development",
+    clientUrl: process.env.CLIENT_URL || "https://auth-red-seven.vercel.app",
     accessTokenSecret: process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || "default_access_token_secret_key",
     accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || "15m",
     refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET || "default_refresh_token_secret_key",
